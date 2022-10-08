@@ -24,6 +24,7 @@ def read_masks(filepath):
         masks[i, mask == 1] = 4  # (Blue: 001) Water 
         masks[i, mask == 7] = 5  # (White: 111) Barren land 
         masks[i, mask == 0] = 6  # (Black: 000) Unknown 
+        
 
     return masks
 

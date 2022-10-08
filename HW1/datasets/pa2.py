@@ -1,160 +1,87 @@
-import collections
-import os.path as osp
+"""
+Dataset class.
 
+Library:       Tensowflow 2.2.0, pyTorch 1.5.1, OpenCV-Python 4.1.1.26
+Author:        Ian Yoo
+Email:        thyoostar@gmail.com
+"""
+from __future__ import absolute_import, print_function, division
+import os
 import numpy as np
-import PIL.Image
-import scipy.io
+import time
 import torch
-from torch.utils import data
+import imageio
+from torch.utils.data import Dataset
+import cv2
+from util.mean_iou_evaluate import read_masks
+# Ignore warnings
+import warnings
+warnings.filterwarnings("ignore")
 
+class DataLoaderError(Exception):
+    pass
 
-class VOCClassSegBase(data.Dataset):
+try:
+    from tqdm import tqdm
+except ImportError:
+    print("tqdm not found, disabling progress bars")
 
-    class_names = np.array([
-        'background',
-        'aeroplane',
-        'bicycle',
-        'bird',
-        'boat',
-        'bottle',
-        'bus',
-        'car',
-        'cat',
-        'chair',
-        'cow',
-        'diningtable',
-        'dog',
-        'horse',
-        'motorbike',
-        'person',
-        'potted plant',
-        'sheep',
-        'sofa',
-        'train',
-        'tv/monitor',
-    ])
-    mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
+    def tqdm(iter):
+        return iter
 
-    def __init__(self, root, split='train', transform=False):
-        self.root = root
-        self.split = split
-        self._transform = transform
+TQDM_COLS = 80
 
-        # VOC2011 and others are subset of VOC2012
-        dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC2012')
-        self.files = collections.defaultdict(list)
-        for split in ['train', 'val']:
-            imgsets_file = osp.join(
-                dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
-            for did in open(imgsets_file):
-                did = did.strip()
-                img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
-                lbl_file = osp.join(
-                    dataset_dir, 'SegmentationClass/%s.png' % did)
-                self.files[split].append({
-                    'img': img_file,
-                    'lbl': lbl_file,
-                })
+class SegmentationDataset(Dataset):
 
+    def __init__(self, images_dir, n_classes, transform=None):
+        
+        super(SegmentationDataset, self).__init__()
+
+        self.images_dir = images_dir
+        self.transform = transform
+        self.n_classes = n_classes
+        J = 1
+
+        self.filenames = self._get_image_pairs_(self.images_dir)
     def __len__(self):
-        return len(self.files[self.split])
+        return len(self.pairs_dir)
 
-    def __getitem__(self, index):
-        data_file = self.files[self.split][index]
-        # load image
-        img_file = data_file['img']
-        img = PIL.Image.open(img_file)
-        img = np.array(img, dtype=np.uint8)
-        # load label
-        lbl_file = data_file['lbl']
-        lbl = PIL.Image.open(lbl_file)
-        lbl = np.array(lbl, dtype=np.int32)
-        lbl[lbl == 255] = -1
-        if self._transform:
-            return self.transform(img, lbl)
-        else:
-            return img, lbl
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+               idx = idx.tolist()
 
-    def transform(self, img, lbl):
-        img = img[:, :, ::-1]  # RGB -> BGR
-        img = img.astype(np.float64)
-        img -= self.mean_bgr
-        img = img.transpose(2, 0, 1)
-        img = torch.from_numpy(img).float()
-        lbl = torch.from_numpy(lbl).long()
-        return img, lbl
+        im = cv2.imread(os.path.join(self.images_dir, self.filenames+'_sat.jpg'), flags=cv2.IMREAD_COLOR)
+        mask = imageio.imread(os.path.join(os.path.join(self.images_dir, self.filenames+'_mask.png')))
+        mask = (mask >= 128).astype(int)
+        FD = 1
+        mask = 4 * mask[:, :, 0] + 2 * mask[:, :, 1] + mask[:, :, 2]
+        masks = np.empty((512, 512))
+        masks[mask == 3] = 0  # (Cyan: 011) Urban land 
+        masks[mask == 6] = 1  # (Yellow: 110) Agriculture land 
+        masks[mask == 5] = 2  # (Purple: 101) Rangeland 
+        masks[mask == 2] = 3  # (Green: 010) Forest land 
+        masks[mask == 1] = 4  # (Blue: 001) Water 
+        masks[mask == 7] = 5  # (White: 111) Barren land 
+        masks[mask == 0] = 6  # (Black: 000) Unknown 
+        sample = {'image': im, 'labeled': masks[0]}
 
-    def untransform(self, img, lbl):
-        img = img.numpy()
-        img = img.transpose(1, 2, 0)
-        img += self.mean_bgr
-        img = img.astype(np.uint8)
-        img = img[:, :, ::-1]
-        lbl = lbl.numpy()
-        return img, lbl
+        if self.transform:
+               sample = self.transform(sample)
 
+        return sample
+    def _get_image_pairs_(self, img_path):
+        """ Check two images have the same name and get all the images
+        :param img_path1: directory
+        :param img_path2: directory
+        :return: pair paths
+        """
 
-class VOC2011ClassSeg(VOCClassSegBase):
+        AVAILABLE_IMAGE_FORMATS = [".jpg", ".jpeg", ".png", ".bmp"]
 
-    def __init__(self, root, split='train', transform=False):
-        super(VOC2011ClassSeg, self).__init__(
-            root, split=split, transform=transform)
-        pkg_root = osp.join(osp.dirname(osp.realpath(__file__)), '..')
-        imgsets_file = osp.join(
-            pkg_root, 'ext/fcn.berkeleyvision.org',
-            'data/pascal/seg11valid.txt')
-        dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC2012')
-        for did in open(imgsets_file):
-            did = did.strip()
-            img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
-            lbl_file = osp.join(dataset_dir, 'SegmentationClass/%s.png' % did)
-            self.files['seg11valid'].append({'img': img_file, 'lbl': lbl_file})
-
-
-class VOC2012ClassSeg(VOCClassSegBase):
-
-    url = 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar'  # NOQA
-
-    def __init__(self, root, split='train', transform=False):
-        super(VOC2012ClassSeg, self).__init__(
-            root, split=split, transform=transform)
-
-
-class SBDClassSeg(VOCClassSegBase):
-
-    # XXX: It must be renamed to benchmark.tar to be extracted.
-    url = 'http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz'  # NOQA
-
-    def __init__(self, root, split='train', transform=False):
-        self.root = root
-        self.split = split
-        self._transform = transform
-
-        dataset_dir = osp.join(self.root, 'VOC/benchmark_RELEASE/dataset')
-        self.files = collections.defaultdict(list)
-        for split in ['train', 'val']:
-            imgsets_file = osp.join(dataset_dir, '%s.txt' % split)
-            for did in open(imgsets_file):
-                did = did.strip()
-                img_file = osp.join(dataset_dir, 'img/%s.jpg' % did)
-                lbl_file = osp.join(dataset_dir, 'cls/%s.mat' % did)
-                self.files[split].append({
-                    'img': img_file,
-                    'lbl': lbl_file,
-                })
-
-    def __getitem__(self, index):
-        data_file = self.files[self.split][index]
-        # load image
-        img_file = data_file['img']
-        img = PIL.Image.open(img_file)
-        img = np.array(img, dtype=np.uint8)
-        # load label
-        lbl_file = data_file['lbl']
-        mat = scipy.io.loadmat(lbl_file)
-        lbl = mat['GTcls'][0]['Segmentation'][0].astype(np.int32)
-        lbl[lbl == 255] = -1
-        if self._transform:
-            return self.transform(img, lbl)
-        else:
-            return img, lblr
+        files = []
+        
+        for dir_entry in os.listdir(img_path):
+               file_name, file_extension = os.path.splitext(dir_entry)[0].split('_')
+               if file_extension == 'sat':
+                files.append(file_name)       
+        return files

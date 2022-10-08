@@ -1,81 +1,85 @@
-import torch.nn as nn
-import torch
 
+from __future__ import absolute_import, division
+from squeeze_extractor import *
+from torch import nn
 
-class SE_VGG(nn.Module):
-    def __init__(self, num_classes):
-        super().__init__()
-        self.num_classes = num_classes
-        # define an empty for Conv_ReLU_MaxPool
-        net = []
+class CopyFeatureInfo:
+	index: int
+	out_channels: int
 
-        # block 1
-        net.append(nn.Conv2d(in_channels=3, out_channels=64, padding=1, kernel_size=3, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=64, out_channels=64, padding=1, kernel_size=3, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+class _VGG(SqueezeExtractor):
+	def __init__(self, model, features, fixed_feature=True):
+		super(_VGG, self).__init__(model, features, fixed_feature)
 
-        # block 2
-        net.append(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1))
-        net.append(nn.ReLU())
-        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+	def get_copy_feature_info(self):
 
-        # block 3
-        net.append(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+		lst_copy_feature_info = []
+		for i in range(len(self.features)):
+			if isinstance(self.features[i], nn.MaxPool2d):
+				out_channels = self._get_last_conv2d_out_channels(self.features[:i])
+				lst_copy_feature_info.append(CopyFeatureInfo(i, out_channels))
+		return lst_copy_feature_info
 
-        # block 4
-        net.append(nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+def vgg_11(batch_norm=True, pretrained=False, fixed_feature=True):
+	""" VGG 11-layer model from torchvision's vgg model.
+	:param batch_norm: train model with batch normalization
+	:param pretrained: if true, return a model pretrained on ImageNet
+	:param fixed_feature: if true and pretrained is true, model features are fixed while training.
+	"""
+	if batch_norm:
+		from torchvision.models.vgg import vgg11_bn
+		model = vgg11_bn(pretrained)
+	else:
+		from torchvision.models.vgg import vgg11
+		model = vgg11(pretrained)
 
-        # block 5
-        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
-        net.append(nn.ReLU())
-        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+	ff = True if pretrained and fixed_feature else False
+	return _VGG(model, model.features, ff)
 
-        # add net into class property
-        self.extract_feature = nn.Sequential(*net)
+def vgg_13(batch_norm=True, pretrained=False, fixed_feature=True):
+	""" VGG 13-layer model from torchvision's vgg model.
+	:param batch_norm: train model with batch normalization
+	:param pretrained: if true, return a model pretrained on ImageNet
+	:param fixed_feature: if true and pretrained is true, model features are fixed while training.
+	"""
+	if batch_norm:
+		from torchvision.models.vgg import vgg13_bn
+		model = vgg13_bn(pretrained)
+	else:
+		from torchvision.models.vgg import vgg13
+		model = vgg13(pretrained)
 
-        # define an empty container for Linear operations
-        classifier = []
-        classifier.append(nn.Linear(in_features=131072, out_features=4096))
-        classifier.append(nn.ReLU())
-        classifier.append(nn.Dropout(p=0.5))
-        classifier.append(nn.Linear(in_features=4096, out_features=4096))
-        classifier.append(nn.ReLU())
-        classifier.append(nn.Dropout(p=0.5))
-        classifier.append(nn.Linear(in_features=4096, out_features=self.num_classes))
+	ff = True if pretrained and fixed_feature else False
+	return _VGG(model, model.features, ff)
 
-        # add classifier into class property
-        self.classifier = nn.Sequential(*classifier)
+def vgg_16(batch_norm=True, pretrained=False, fixed_feature=True):
+	""" VGG 16-layer model from torchvision's vgg model.
+	:param batch_norm: train model with batch normalization
+	:param pretrained: if true, return a model pretrained on ImageNet
+	:param fixed_feature: if true and pretrained is true, model features are fixed while training.
+	"""
+	if batch_norm:
+		from torchvision.models.vgg import vgg16_bn
+		model = vgg16_bn(pretrained)
+	else:
+		from torchvision.models.vgg import vgg16
+		model = vgg16(pretrained)
 
+	ff = True if pretrained and fixed_feature else False
+	return _VGG(model, model.features, ff)
 
-    def forward(self, x):
-        feature = self.extract_feature(x)
-        feature = feature.view(x.size(0), -1)
-        print(feature.shape)
-        classify_result = self.classifier(feature)
-        return classify_result
+def vgg_19(batch_norm=True, pretrained=False, fixed_feature=True):
+	""" VGG 19-layer model from torchvision's vgg model.
+	:param batch_norm: train model with batch normalization
+	:param pretrained: if true, return a model pretrained on ImageNet
+	:param fixed_feature: if true and pretrained is true, model features are fixed while training.
+	"""
+	if batch_norm:
+		from torchvision.models.vgg import vgg19_bn
+		model = vgg19_bn(pretrained)
+	else:
+		from torchvision.models.vgg import vgg19
+		model = vgg19(pretrained)
 
-if __name__ == "__main__":
-    x = torch.rand(size=(8, 3, 512, 512))
-    vgg = SE_VGG(num_classes=7)
-    out = vgg(x)
-    print(out.size())
+	ff = True if pretrained and fixed_feature else False
+	return _VGG(model, model.features, ff)
