@@ -119,6 +119,7 @@ class Trainer(object):
         if self.test_loader:
             dataloader_iterator = iter(self.test_loader)
 
+        train_loss,train_acc = 0.0, 0.0
         for n_batch, (sample_batched) in tqdm(enumerate(self.train_loader),
                                               total=num_batches,
                                               leave=False,
@@ -165,7 +166,8 @@ class Trainer(object):
             self.logger.log_train(acc_cls, 'acc_cls', self.epoch, n_batch, num_batches)
             self.logger.log_train(mean_iou, 'mean_iou', self.epoch, n_batch, num_batches)
             self.logger.log_train(fwavacc, 'fwavacc', self.epoch, n_batch, num_batches)
-
+            train_loss += loss.item()
+            train_acc += acc
             #write result images when starting epoch.
             if n_batch == 0:
                 log_img = self.logger.concatenate_images([lbl_pred, lbl_true], input_axis='byx')
@@ -184,12 +186,13 @@ class Trainer(object):
                         sample_batched = next(dataloader_iterator)
 
                     self._eval_batch(sample_batched, n_batch, num_batches)
+        print("    Training Loss:{:.4f},  Training Acc {:.2f}".format(train_loss/32, train_acc/32))
 
 
     def _eval_batch(self, sample_batched, n_batch, num_batches):
         data = sample_batched['image']
         target = sample_batched['annotation']
-
+        
         if self.cuda:
             data, target = data.cuda(), target.cuda()
         torch.cuda.empty_cache()
@@ -211,7 +214,7 @@ class Trainer(object):
         self.logger.log_test(acc_cls, 'acc_cls', self.epoch, n_batch, num_batches)
         self.logger.log_test(mean_iou, 'mean_iou', self.epoch, n_batch, num_batches)
         self.logger.log_test(fwavacc, 'fwavacc', self.epoch, n_batch, num_batches)
-
+        print("    Testing Loss:{:.4f},  Testing Acc {:.2f}".format(loss, acc))
         if n_batch == 0:
             log_img = self.logger.concatenate_images([lbl_pred, lbl_true], input_axis='byx')
             log_img = self.logger.concatenate_images([log_img, data.cpu().numpy()[:, :, :, :]])
@@ -235,16 +238,15 @@ from datasets.transform import Rescale, ToTensor
 from models.FCN32 import fcn32_vgg16
 from util.logger import Logger
 
-train_images = r'dataset/cityspaces/images/train'
-test_images = r'dataset/cityspaces/images/test'
-train_labled = r'dataset/cityspaces/labeled/train'
-test_labeled = r'dataset/cityspaces/labeled/test'
+train_images = r'/content/drive/MyDrive/DLCV/HW1/hw1_data/p2_data/train'
+test_images = r'/content/drive/MyDrive/DLCV/HW1/hw1_data/p2_data/validation'
+
 
 if __name__ == '__main__':
     model_name = "fcn32_vgg16"
     device = 'cuda'
-    batch_size = 4
-    n_classes = 34
+    batch_size = 32
+    n_classes = 7
     num_epochs = 10
     image_axis_minimum_size = 200
     pretrained = True
@@ -261,7 +263,7 @@ if __name__ == '__main__':
     train_datasets = SegmentationDataset(train_images, n_classes, compose)
     train_loader = torch.utils.data.DataLoader(train_datasets, batch_size=batch_size, shuffle=True, drop_last=True)
 
-    test_datasets = SegmentationDataset(test_images, test_labeled, n_classes, compose)
+    test_datasets = SegmentationDataset(test_images, n_classes, compose)
     test_loader = torch.utils.data.DataLoader(test_datasets, batch_size=batch_size, shuffle=True, drop_last=True)
 
     ### Model
@@ -291,5 +293,5 @@ if __name__ == '__main__':
     #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     trainer = Trainer(model, optimizer, logger, num_epochs, train_loader, test_loader)
     trainer.train()
-
+    trainer.evaluate()
 

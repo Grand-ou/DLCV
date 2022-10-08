@@ -174,5 +174,5 @@ if __name__ == '__main__':
         
         Transpose()
     ])
-    dataset = ImageDataset(root_dir = '/content/drive/MyDrive/DLCV/HW1/hw1_data/hw1_data/p1_data/train_50',transform=transform)
+    dataset = ImageDataset(root_dir = '/content/drive/MyDrive/DLCV/HW1/hw1_data/p1_data/train_50',transform=transform)
     train_with_cv(device, dataset, args)
