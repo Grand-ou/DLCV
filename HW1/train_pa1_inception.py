@@ -4,7 +4,9 @@ import tqdm
 import os
 import time
 import matplotlib.pyplot as plt
-
+import timm 
+from timm.data import resolve_data_config
+from timm.data.transforms_factory import create_transform
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -21,7 +23,7 @@ def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='C:/Users/ouchu/bucket data/post-estimate/assests/combine', help='data_directory')
     parser.add_argument('--num_classes', type = int, default=50, help='number of class')
-    parser.add_argument('--batch_size', type=int, default=128, help='size for each minibatch')
+    parser.add_argument('--batch_size', type=int, default=32, help='size for each minibatch')
     parser.add_argument('--num_epochs', type=int, default=10, help='maximum number of epochs')
     parser.add_argument('--learning_rate', type=float, default=0.05, help='initial learning rate')
     parser.add_argument('--momentum', type=float, default=0.5, help='initial momentum')
@@ -73,7 +75,7 @@ def valid_epoch(model, device, dataloader, criterion):
 def train_with_cv(device, dataset, args):
     criterion = nn.CrossEntropyLoss() 
     if args.cv == 1:
-        model = ResNet50(num_classes=args.num_classes)
+        model = timm.create_model('inception_v4', pretrained=True, num_classes=args.num_classes)
         model.to(device)
         optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, momentum=args.momentum)
         save_model(args.num_epochs, device, model, optimizer, dataset, args)
@@ -88,7 +90,9 @@ def train_with_cv(device, dataset, args):
         for fold, (train_idx, test_idx) in enumerate(splits.split(np.arange(len(dataset)))):
             print('Fold {}'.format(fold + 1))
 
-            model = ResNet50(num_classes=args.num_classes)
+
+            model = timm.create_model('inception_v4', pretrained=True, num_classes=args.num_classes)
+
             model.to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, momentum=args.momentum)
             
@@ -134,7 +138,7 @@ def train_with_cv(device, dataset, args):
         draw_curve(args, average_history)
 
         best_epoch_num = np.argmax(average_history['test_acc'])+1
-        model = ResNet50(num_classes=args.num_classes)
+        model = timm.create_model('inception_v4', pretrained=True, num_classes=args.num_classes)
         model.to(device)
         optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, momentum=args.momentum)
         save_model(best_epoch_num, device, model, optimizer, dataset, args)
@@ -174,5 +178,7 @@ if __name__ == '__main__':
         
         Transpose()
     ])
-    dataset = ImageDataset(root_dir = '/content/drive/MyDrive/DLCV/HW1/hw1_data/hw1_data/p1_data/train_50',transform=transform)
+    config = resolve_data_config({}, model=timm.create_model('inception_v4', pretrained=True, num_classes=args.num_classes))
+    transform = create_transform(**config)
+    dataset = ImageDataset(root_dir = '/content/drive/MyDrive/DLCV/HW1/hw1_data/p1_data/train_50',transform=transform)
     train_with_cv(device, dataset, args)

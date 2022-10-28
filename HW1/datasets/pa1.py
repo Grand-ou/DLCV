@@ -1,6 +1,6 @@
 
 import os
-
+from PIL import Image
 import cv2
 import numpy as np
 from copy import deepcopy
@@ -27,17 +27,18 @@ class ImageDataset(Dataset):
 
 
     def __len__(self):
-        return len(self.fnames)
+        return len(self.file_array )
 
     def __getitem__(self, index):
         # Loading and preprocessing.
         label = np.array(self.label_array[index])
-        
-        img = self.load_frames(self.file_array[index])
+        img = Image.open(self.root_dir+'/'+self.file_array[index])
+        # img = self.load_frames(self.file_array[index])
         img = self.transform(img)
+        
         label = torch.from_numpy(label)
         label = label.type(torch.LongTensor)
-        return img, label
+        return img, label, self.file_array[index]
 
     def randomflip(self, buffer):
         """Horizontally flip the given image and ground truth randomly with a probability of 0.5."""
@@ -50,7 +51,7 @@ class ImageDataset(Dataset):
 
     def load_frames(self, frame_name):
         frame = cv2.imread(os.path.join(self.root_dir, frame_name) )
-        print(frame.shape)
+
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = frame.astype(np.float64)
         return frame
@@ -75,10 +76,18 @@ class Transpose(object):
         return sample.permute((2, 0, 1))
 
 
+class RandomSampler(object):
+    def __init__(self, offset, sample_num):
+        index_list = sorted(np.random.choice(offset, sample_num, replace=False))
+        self.index_list = index_list
+
+    def __call__(self, sample):
+        return sample[self.index_list]
 
 class ToTensor(object):
     def __call__(self, sample):
-        return torch.from_numpy(sample)
+
+        return torch.from_numpy(sample).type(torch.FloatTensor)
 
 
 if __name__ == "__main__":

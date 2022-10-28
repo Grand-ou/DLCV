@@ -72,10 +72,10 @@ class Block(nn.Module):
         
         
 class ResNet(nn.Module):
-    def __init__(self, ResBlock, layer_list, num_classes, num_channels=3):
+    def __init__(self, ResBlock, layer_list, num_classes, num_channels=3, mode='train'):
         super(ResNet, self).__init__()
         self.in_channels = 64
-        
+        self.mode = mode
         self.conv1 = nn.Conv2d(num_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.batch_norm1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU()
@@ -100,10 +100,13 @@ class ResNet(nn.Module):
         x = self.layer4(x)
         
         x = self.avgpool(x)
-        x = x.reshape(x.shape[0], -1)
-        x = self.fc(x)
+        logits = x.reshape(x.shape[0], -1)
+        x = self.fc(logits)
+        if self.mode == 'train':
+            return x
+        else:
+             return x, logits
         
-        return x
         
     def _make_layer(self, ResBlock, blocks, planes, stride=1):
         ii_downsample = None
@@ -125,8 +128,8 @@ class ResNet(nn.Module):
 
         
         
-def ResNet50(num_classes, channels=3):
-    return ResNet(Bottleneck, [3,4,6,3], num_classes, channels)
+def ResNet50(num_classes, channels=3, mode='train'):
+    return ResNet(Bottleneck, [3,4,6,3], num_classes, channels, mode)
     
 def ResNet101(num_classes, channels=3):
     return ResNet(Bottleneck, [3,4,23,3], num_classes, channels)

@@ -39,9 +39,9 @@ class Rescale(object):
         new_h, new_w = int(new_h), int(new_w)
 
         img = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
-        lbl = cv2.resize(labeled, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+        # labeled = cv2.resize(labeled, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
 
-        return {'image': img, 'labeled': lbl}
+        return {'image': img, 'labeled': labeled}
 
 class RandomHorizontalFlip(torch.nn.Module):
     """Horizontally flip the given image randomly with a given probability.
@@ -62,7 +62,7 @@ class RandomHorizontalFlip(torch.nn.Module):
 
         if torch.rand(1) < self.p:
             image = cv2.flip(image, 1)
-            labeled = cv2.flip(labeled, 1)
+            # labeled = cv2.flip(labeled, 1)
 
         return {'image': image, 'labeled': labeled}
 
@@ -101,4 +101,4 @@ class ToTensor(object):
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
         return {'image': torch.from_numpy(image).float(),
-                'annotation': torch.from_numpy(lbl).long()}
+                'annotation': lbl}

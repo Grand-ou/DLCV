@@ -67,6 +67,7 @@ def viz_data(im, seg, color, inner_alpha = 0.3, edge_alpha = 1, edge_width = 5):
     edge = mask_edge_detection(seg, edge_width)
 
     color_mask = np.zeros((edge.shape[0]*edge.shape[1], 3))
+    print(color_mask.shape)
     l_loc = np.where(seg.flatten() == 1)[0]
     color_mask[l_loc, : ] = color
     color_mask = np.reshape(color_mask, im.shape)
@@ -119,18 +120,19 @@ if __name__ == '__main__':
     img_path = args.img_path
     seg_path = args.seg_path
 
-    img = imageio.imread(img_path)
-    seg = imageio.imread(seg_path)
+    img = imageio.imread('/content/drive/MyDrive/DLCV/HW1/input/test_dir/0013_sat.jpg')
+    seg = imageio.imread('/content/drive/MyDrive/DLCV/HW1/hw1_data/p2_data/validation/0013_mask.png')
     
     masks=read_masks(seg, img.shape)
 
 
-    
+    print(masks.shape)
     cs = np.unique(masks)
-
+    print(len(cs), cs.shape)
     for c in cs:
         mask = np.zeros((img.shape[0], img.shape[1]))
         ind = np.where(masks==c)
         mask[ind[0], ind[1]] = 1
+        print(img.shape, mask.shape)
         img = viz_data(img, mask, color=cmap[c])
         imageio.imsave('./exp.png', np.uint8(img))

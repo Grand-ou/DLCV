@@ -12,7 +12,7 @@ import os
 import numpy as np
 import errno
 import torchvision.utils as vutils
-from tensorboardX import SummaryWriter
+
 from matplotlib import pyplot as plt
 import pathlib
 import datetime
@@ -36,8 +36,7 @@ class Logger:
 		self.hdl_chkpoint = CheckpointHandler()
 
 		# TensorBoard
-		self.writer_train = SummaryWriter(train_log_dir, comment=self.comment)
-		self.writer_test = SummaryWriter(test_log_dir, comment=self.comment)
+
 
 	def log_train(self, scalar, title, epoch, n_batch, num_batches):
 		step = Logger._step(epoch, n_batch, num_batches)
@@ -223,7 +222,7 @@ class Logger:
 		self.hdl_chkpoint.save_checkpoint('{}/{}'.format(out_dir, file_name), model, optim)
 
 	def load_model(self, model, file_name):
-		dir = './runs/models/{}'.format(self.data_subdir)
+		dir = 'checkpoints/{}'.format(self.data_subdir)
 		assert Logger._exist(dir)
 
 		self.hdl_chkpoint = self.hdl_chkpoint.load_checkpoint('{}/{}'.format(dir, file_name))
