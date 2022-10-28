@@ -52,7 +52,7 @@ def valid_epoch(model, device, dataloader, criterion):
     
             imgnames = imgnames + list(imgname)
             inputs, labels = inputs.to(device), labels.to(device)
-            outputs, logits = model(inputs)
+            outputs = model(inputs)
 
             loss = criterion(outputs, labels)
             predictions = torch.max(outputs, 1)[1]

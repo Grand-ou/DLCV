@@ -222,7 +222,7 @@ class Logger:
 		self.hdl_chkpoint.save_checkpoint('{}/{}'.format(out_dir, file_name), model, optim)
 
 	def load_model(self, model, file_name):
-		dir = 'checkpoints/{}'.format(self.data_subdir)
+		dir = 'checkpoints'
 		assert Logger._exist(dir)
 
 		self.hdl_chkpoint = self.hdl_chkpoint.load_checkpoint('{}/{}'.format(dir, file_name))
